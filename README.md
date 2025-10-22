@@ -28,6 +28,7 @@ graph TB
             nginx_b[Nginx + ModSecurity<br/>Reverse Proxy]:::proxy
             
             subgraph activitypub[ActivityPub]
+                yui[Misskey Bot]:::service
                 yamisskey[Misskey]:::service
                 neoquesdon[Neo-Quesdon]:::service
             end
@@ -103,6 +104,7 @@ graph TB
     %% Nginx to services - balthasar
     nginx_b --> yamisskey
     nginx_b --> neoquesdon
+    nginx_b --> ai
     nginx_b --> nostream
     nginx_b --> rabbit
     nginx_b --> element
