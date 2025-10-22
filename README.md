@@ -34,6 +34,7 @@ graph TB
             
             subgraph nostr[Nostr]
                nostream[Nostream]:::service
+               rabbit[Rabbit]:::service
             end
             
             subgraph matrix[Matrix]
@@ -103,6 +104,7 @@ graph TB
     nginx_b --> yamisskey
     nginx_b --> neoquesdon
     nginx_b --> nostream
+    nginx_b --> rabbit
     nginx_b --> element
     nginx_b --> synapse
     nginx_b --> outline
