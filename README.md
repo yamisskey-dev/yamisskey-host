@@ -1,4 +1,4 @@
-# hosted-list
+# yamisskey-host
 
 ## Service Architecture & Deployment Overview
 
