@@ -341,13 +341,13 @@ graph TB
     classDef zfs fill:#4c1d95,stroke:#c4b5fd,stroke-width:2px,color:#ffffff
     classDef encrypted fill:#fee2e2,stroke:#991b1b,stroke-width:2px
     classDef local fill:#dcfce7,stroke:#16a34a,stroke-width:2px
-
+    
     %% External storage
-    subgraph external["外部ストレージ"]
-        r2["Cloudflare R2<br/>日次DBダンプ<br/>週次システム同期<br/>(メディア除外)"]:::cloud
-        filen["Filen E2E<br/>日次メディア差分バックアップ<br/>rclone暗号化<br/>月次システムアーカイブ"]:::encrypted
+    subgraph external["外部ストレージ（オフサイト）"]
+        r2["Cloudflare R2<br/>日次DBダンプ<br/>世代管理<br/>11 nines耐久性"]:::cloud
+        filen["Filen<br/>MinIO画像バックアップ<br/>暗号化保存"]:::encrypted
     end
-
+    
     %% Internal network
     subgraph internal["ローカルネットワーク"]
         
@@ -360,8 +360,8 @@ graph TB
             end
             
             subgraph truenas_services["TrueNAS Services (Docker統一)"]
-                zfs_pool["ZFS Pool (Mirror)<br/>スナップショット<br/>圧縮・重複排除"]:::zfs
-                backup_svc["Backup Services<br/>pg_dump scheduler<br/>rsync server<br/>rclone Filen sync"]:::backup
+                zfs_pool["ZFS Pool (Mirror)<br/>【ローカルバックアップ】<br/>・DBダンプ保存<br/>・MinIO画像保存<br/>・ZFSスナップショット<br/>・圧縮・重複排除<br/>・高速リストア可能"]:::zfs
+                backup_svc["Backup Services<br/>rsync server<br/>rclone Filen sync"]:::backup
                 node_exporter["Node Exporter (Docker)<br/>監視エージェント"]:::service
             end
             
@@ -372,45 +372,42 @@ graph TB
         subgraph servers["サーバー群"]
             subgraph balthasar["balthasar 本番"]
                 misskey1["Misskey"]:::service
-                db1["PostgreSQL DB"]:::service
-                minio_local["MinIO<br/>オブジェクトストレージ<br/2TB"]:::local
-                backup1["Backup Agent<br/>pg_dump + rsync"]:::backup
+                db1["PostgreSQL DB<br/>【本番データ】"]:::service
+                minio_local["MinIO<br/>【本番データ】<br/>オブジェクトストレージ<br/>2TB"]:::local
+                backup1["Backup Agent<br/>pg_dump<br/>rsync<br/>rclone"]:::backup
             end
         end
     end
-
+    
     %% Service connections - ローカル接続
     misskey1 --> minio_local
     misskey1 --> db1
-
-    %% MinIO → Filen 日次差分バックアップ (rsync経由)
-    minio_local -.->|"rsync over SSH<br/>2.5G LAN"| backup_svc
-    backup_svc ==>|"日次差分バックアップ<br/>rclone sync<br/>暗号化転送<br/>5-15分/日"| filen
-
-    %% DB Backup flows - 既存維持
-    db1 -.->|"日次DBダンプ<br/>2.5G LAN<br/>高速転送"| backup_svc
-    db1 -.->|"日次DBダンプ<br/>直接R2"| r2
+    
+    %% DB Backup flows - 独立した2系統
+    db1 -.->|"①直接外部バックアップ<br/>pg_dump + rclone<br/>世代管理<br/>TrueNAS非依存"| r2
+    db1 -.->|"②ローカルバックアップ<br/>pg_dump + rsync<br/>2.5G LAN<br/>高速リストア用"| backup_svc
+    backup_svc ==>|"ZFS保存<br/>スナップショット"| zfs_pool
+    
+    %% MinIO Backup flows - TrueNAS経由（差分管理）
+    minio_local -.->|"①rsync over SSH<br/>2.5G LAN<br/>画像ファイル同期<br/>差分転送"| backup_svc
+    backup_svc ==>|"②ローカル保存<br/>ZFSスナップショット"| zfs_pool
+    backup_svc ==>|"③外部バックアップ<br/>rclone sync<br/>暗号化転送<br/>5-15分/日"| filen
     
     %% TrueNAS internal flows
-    backup_svc --> zfs_pool
     slot23 --> zfs_pool
     emmc --> truenas_services
     
-    %% ZFS snapshots and replication
-    zfs_pool -.->|"ZFS Send/Receive<br/>週次差分同期"| r2
-    zfs_pool -.->|"ZFS スナップショット<br/>時系列バックアップ"| slot23
+    %% ZFS snapshots
+    zfs_pool -.->|"自動スナップショット<br/>時間/日/週/月<br/>時系列バックアップ<br/>誤削除・改ざん対策"| slot23
     
     %% System backup flows
     backup1 -.->|"システムバックアップ<br/>rsync over SSH"| backup_svc
-    minio_local -.->|"メディアバックアップ<br/>rsync同期"| backup_svc
     
     %% Monitoring flows
     node_exporter -.->|"システム監視<br/>メトリクス送信"| zfs_pool
-    backup_svc -.->|"バックアップ成功率<br/>転送統計<br/>暗号化検証"| node_exporter
+    backup_svc -.->|"バックアップ成功率<br/>転送統計<br/>暗号化検証<br/>ZFS容量監視"| node_exporter
+    backup1 -.->|"R2バックアップ成功率<br/>転送統計"| node_exporter
     
-    %% External sync flows  
-    backup_svc -.->|"システム月次アーカイブ<br/>設定・ログ"| filen
-
     %% Apply styles
     class balthasar server
     class beelink_nas beelink
