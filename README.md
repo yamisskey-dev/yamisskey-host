@@ -46,15 +46,12 @@ graph TB
             subgraph apps[Apps]
                 outline[Outline]:::service
                 cryptpad[CryptPad]:::service
+                minio[MinIO]:::storage
             end
-            
+
             subgraph auth_services[認証・セキュリティ]
                 zitadel[Zitadel]:::security
                 mcaptcha[mCaptcha]:::security
-            end
-            
-            subgraph storage_local[Storage]
-                minio[MinIO]:::storage
             end
         end
         
@@ -85,10 +82,9 @@ graph TB
         internet((Internet)):::cloudflare
     end
     
-    %% Local storage connections (thick lines)
-    yamisskey --> minio
-    outline --> minio
-    
+    %% Cloudflared to MinIO connections
+    nginx_b --> minio
+
     %% Local authentication connections (within balthasar)
     outline --> zitadel
     yamisskey --> mcaptcha
@@ -134,7 +130,6 @@ graph TB
     class auth_services security
     class cloudflared_b,cloudflared_c cloudflare
     class nginx_b,nginx_c proxy
-    class storage_local storage
 ```
 
 ## Proxmox Virtualization Platform & Security Environment
@@ -338,9 +333,10 @@ graph TB
     classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
     classDef beelink fill:#ffb88c,stroke:#ffffff,stroke-width:2px,color:#ffffff
     classDef cloud fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
+    classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
     classDef zfs fill:#4c1d95,stroke:#c4b5fd,stroke-width:2px,color:#ffffff
     classDef encrypted fill:#fee2e2,stroke:#991b1b,stroke-width:2px
-    classDef local fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
     
     %% External storage
     subgraph external["外部ストレージ（オフサイト）"]
@@ -371,16 +367,20 @@ graph TB
         %% Main servers
         subgraph servers["サーバー群"]
             subgraph balthasar["balthasar 本番"]
+                cloudflared_bh[Cloudflared]:::cloudflare
+                nginx_bh[Nginx + ModSecurity]:::security
                 misskey1["Misskey"]:::service
                 db1["PostgreSQL DB<br/>【本番データ】"]:::service
-                minio_local["MinIO<br/>【本番データ】<br/>オブジェクトストレージ<br/>2TB"]:::local
+                minio_local["MinIO<br/>【本番データ】<br/>オブジェクトストレージ<br/>2TB"]:::storage
                 backup1["Backup Agent<br/>pg_dump<br/>rsync<br/>rclone"]:::backup
             end
         end
     end
-    
-    %% Service connections - ローカル接続
-    misskey1 --> minio_local
+
+    %% Service connections - Cloudflared + Nginx経由
+    misskey1 --> cloudflared_bh
+    cloudflared_bh --> nginx_bh
+    nginx_bh --> minio_local
     misskey1 --> db1
     
     %% DB Backup flows - 独立した2系統
@@ -411,11 +411,13 @@ graph TB
     %% Apply styles
     class balthasar server
     class beelink_nas beelink
+    class cloudflared_bh cloudflare
+    class nginx_bh security
     class misskey1,db1,node_exporter service
     class backup_svc,backup1 backup
     class r2 cloud
     class filen encrypted
-    class minio_local local
+    class minio_local storage
     class slot456,slot23,zfs_pool storage
     class emmc storage
 ```
@@ -432,7 +434,7 @@ classDef user fill:#fef9c3,stroke:#ca8a04,stroke-width:1.5px
 classDef federation fill:#f3e8ff,stroke:#7c3aed,stroke-width:1.5px
 classDef direct fill:#dcfce7,stroke:#16a34a,stroke-width:2px
 classDef tailscale fill:#fef3c7,stroke:#d97706,stroke-width:2px
-classDef local fill:#dcfce7,stroke:#16a34a,stroke-width:3px
+classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
 
 %% External actors
 enduser([エンドユーザー<br/>Webブラウザ]):::user
@@ -458,7 +460,7 @@ subgraph support[Support Infrastructure]
         subgraph balthasar_caspar[balthasar/caspar]
             nginx_misskey[Nginx + ModSecurity<br/>WAF・Reverse Proxy]:::security
             yamisskey[Misskey<br/>🔗 Tailscale接続]:::tailscale
-            minio_local[MinIO<br/>オブジェクトストレージ]:::local
+            minio_local[MinIO<br/>オブジェクトストレージ]:::storage
             cloudflared_bc[Cloudflared]:::cloudflare
         end
     end
@@ -468,12 +470,14 @@ end
 enduser ==>|"①Web UI アクセス"| cloudflared_bc
 cloudflared_bc ==> nginx_misskey
 nginx_misskey ==> yamisskey
+nginx_misskey ==> minio_local
 
 %% 外部サーバーからの連合リクエスト（通常線）
 external_servers -->|"②連合リクエスト"| cloudflared_bc
 
-%% Misskeyからのローカル接続（太線・緑色）
-yamisskey ==>|"③ローカル接続<br/>高速・低レイテンシ"| minio_local
+%% MisskeyからMinIOへのCloudflared経由接続
+yamisskey ==>|"③Cloudflared経由"| cloudflared_bc
+cloudflared_bc ==>|"MinIOアクセス"| nginx_misskey
 
 %% Misskeyサーバーからの全外部通信はSquid経由
 yamisskey ==>|"④🔗 Tailscale経由<br/>全外部通信"| squid
