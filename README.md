@@ -422,6 +422,71 @@ graph TB
     class emmc storage
 ```
 
+## Cloudflare Workers & Pages Services
+
+```mermaid
+graph TB
+    %% Style definitions
+    classDef workers fill:#f97316,stroke:#ea580c,stroke-width:2px,color:#ffffff
+    classDef pages fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#ffffff
+    classDef github fill:#24292e,stroke:#1b1f23,stroke-width:2px,color:#ffffff
+    classDef misskey fill:#86b300,stroke:#638600,stroke-width:2px,color:#ffffff
+    classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
+    classDef user fill:#fef9c3,stroke:#ca8a04,stroke-width:1.5px
+
+    %% External Services
+    github_api([GitHub API<br/>Webhook/Events]):::github
+    misskey_api([Misskey API<br/>yami.ski]):::misskey
+    discord_api([Discord<br/>Webhook]):::github
+    users([ユーザー]):::user
+
+    subgraph cloudflare_edge["Cloudflare Edge Network"]
+        direction TB
+
+        subgraph workers_apps["Workers (サーバーレス関数)"]
+            direction TB
+            notifier["yamisskey-github-notifier-next<br/>GitHub開発状況 → Discord/Misskey通知"]:::workers
+            yamioti["yamioti<br/>ダウン時リダイレクト"]:::workers
+            signup_filter["misskey-registration-filter<br/>登録フィルター"]:::workers
+            discord_notify["misskey-notify-to-discord<br/>管理者通知 → Discord転送"]:::workers
+        end
+
+        subgraph pages_apps["Pages (静的サイトホスティング)"]
+            direction TB
+            hub["yamisskey-hub-starlight<br/>ドキュメントサイト (Starlight)"]:::pages
+            down["yamisskey-down<br/>メンテナンス・障害ページ"]:::pages
+            anonote["yamisskey-anonote<br/>匿名ノートサービス"]:::pages
+            revision["yamisskey-revision<br/>闇消し (ノート削除ツール)"]:::pages
+            yamidao["yamidao<br/>DAO ガバナンスサイト"]:::pages
+        end
+    end
+
+    %% Connections - Workers
+    github_api -->|"Webhook<br/>Push/PR/Issue Events"| notifier
+    notifier -->|"開発状況通知"| misskey_api
+    notifier -->|"開発状況通知"| discord_api
+
+    misskey_api -->|"管理者通知"| discord_notify
+    discord_notify -->|"通知転送"| discord_api
+
+    users -->|"yami.ski<br/>アクセス"| yamioti
+    yamioti -->|"ダウン時"| down
+    yamioti -.->|"正常時"| misskey_api
+
+    users -->|"新規登録<br/>リクエスト"| signup_filter
+    signup_filter -->|"フィルタ済み<br/>リクエスト"| misskey_api
+
+    %% Connections - Pages
+    users -->|"ドキュメント<br/>閲覧"| hub
+    users -->|"障害情報<br/>確認"| down
+    users -->|"匿名ノート<br/>作成"| anonote
+    users -->|"ノート<br/>削除"| revision
+    users -->|"DAO参加"| yamidao
+
+    %% Apply styles
+    class cloudflare_edge cloudflare
+```
+
 ## Network Traffic Flow & Proxy Configuration
 
 ```mermaid
