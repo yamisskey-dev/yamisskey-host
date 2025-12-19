@@ -50,7 +50,7 @@ graph TB
             end
 
             subgraph auth_services[認証・セキュリティ]
-                zitadel[Zitadel]:::security
+                authentik[Authentik]:::security
                 mcaptcha[mCaptcha]:::security
             end
         end
@@ -86,7 +86,7 @@ graph TB
     nginx_b --> minio
 
     %% Local authentication connections (within balthasar)
-    outline --> zitadel
+    outline --> authentik
     yamisskey --> mcaptcha
     
     %% Other core connections
@@ -107,7 +107,7 @@ graph TB
     nginx_b --> synapse
     nginx_b --> outline
     nginx_b --> cryptpad
-    nginx_b --> zitadel
+    nginx_b --> authentik
     nginx_b --> mcaptcha
     
     %% Nginx to services - caspar
