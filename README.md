@@ -65,9 +65,6 @@ graph TB
                 vm[VM]:::service
             end
             
-            subgraph social_c[Social - テスト]
-                nayamisskey[Misskey N/A]:::service
-            end
         end
         
         subgraph raspberrypi[raspberrypi - Minecraft専用<br/>NVMe SSD 2TB, 8GB RAM]
@@ -111,7 +108,6 @@ graph TB
     nginx_b --> mcaptcha
     
     %% Nginx to services - caspar
-    nginx_c --> nayamisskey
     nginx_c --> ctfd
     
     %% External connections
@@ -126,7 +122,7 @@ graph TB
     class nostr nostrStyle
     class matrix matrixStyle
     class apps appsStyle
-    class games,CTF,social_c service
+    class games,CTF service
     class auth_services security
     class cloudflared_b,cloudflared_c cloudflare
     class nginx_b,nginx_c proxy
