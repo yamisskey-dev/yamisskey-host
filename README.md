@@ -454,6 +454,7 @@ graph TB
             anonote["yamisskey-anonote<br/>匿名ノートサービス"]:::pages
             revision["yamisskey-revision<br/>闇消し (ノート削除ツール)"]:::pages
             yamidao["yamidao<br/>DAO ガバナンスサイト"]:::pages
+            missmap["missmap<br/>Misskeyサーバーマップ"]:::pages
         end
     end
 
@@ -478,6 +479,7 @@ graph TB
     users -->|"匿名ノート<br/>作成"| anonote
     users -->|"ノート<br/>削除"| revision
     users -->|"DAO参加"| yamidao
+    users -->|"サーバーマップ<br/>閲覧"| missmap
 
     %% Apply styles
     class cloudflare_edge cloudflare
