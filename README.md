@@ -132,7 +132,7 @@ graph TB
     %% Apply styles to subgraphs
     class balthasar,caspar homeServer
     class raspberrypi rpi
-    class activitypub activitypubStyle
+    class activitypub,test_env activitypubStyle
     class nostr nostrStyle
     class matrix matrixStyle
     class apps appsStyle
