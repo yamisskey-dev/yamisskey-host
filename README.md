@@ -19,6 +19,7 @@ graph TB
     classDef appsStyle fill:#fef3c7,stroke:#ca8a04,stroke-width:2px
     classDef monitoring fill:#d1fae5,stroke:#047857,stroke-width:2px
     classDef iac fill:#f0f9ff,stroke:#0369a1,stroke-width:2px
+    classDef rtcStyle fill:#fce7f3,stroke:#db2777,stroke-width:2px
     
     %% Main Infrastructure
     subgraph main_servers[Main Servers]
@@ -38,6 +39,13 @@ graph TB
             subgraph matrix[Matrix]
                 synapse[Synapse]:::service
                 element[Element]:::service
+            end
+            
+            subgraph rtc[Real-Time Communication]
+                jitsi_meet[Jitsi Meet<br/>Web UI]:::service
+                jicofo[Jicofo<br/>Conference Focus]:::service
+                jvb[Jitsi Videobridge<br/>Media Server]:::service
+                prosody[Prosody<br/>XMPP Server]:::service
             end
             
             subgraph apps[Apps]
@@ -91,6 +99,11 @@ graph TB
     outline -.->|Tailscale| authentik
     yamisskey -.->|Tailscale| mcaptcha
     
+    %% Jitsi internal connections
+    jitsi_meet --> prosody
+    jicofo --> prosody
+    jvb --> prosody
+    
     %% Other core connections
     element --> synapse
     minecraft --> playig
@@ -107,6 +120,7 @@ graph TB
     nginx_b --> synapse
     nginx_b --> outline
     nginx_b --> cryptpad
+    nginx_b --> jitsi_meet
     
     %% Nginx to services - caspar
     nginx_c --> prometheus
@@ -128,6 +142,7 @@ graph TB
     class activitypub activitypubStyle
     class nostr nostrStyle
     class matrix matrixStyle
+    class rtc rtcStyle
     class apps appsStyle
     class games service
     class auth_services security
@@ -255,6 +270,7 @@ graph TB
         end
         physical["物理サーバー (Ansible管理)<br/>• balthasar<br/>• caspar"]:::homeServer
         truenas["TrueNAS (Ansible管理)<br/>ストレージ・バックアップ"]:::homeServer
+        linode["Linode (Ansible管理)<br/>• linode-proxy<br/>• Coturn"]:::homeServer
     end
 
     %% Notifications
@@ -269,6 +285,7 @@ graph TB
     terraform -->|VM作成・更新<br/>ストレージ割り当て<br/>ネットワーク設定| proxmox_infra
     ansible -->|設定適用| physical
     ansible -->|設定適用| truenas
+    ansible -->|設定適用| linode
     cloud_init -->|初期設定| proxmox_vms
 
     %% Notifications
@@ -304,10 +321,10 @@ graph TB
     
     %% All Monitored Systems (consolidated)
     subgraph systems["監視対象システム"]
-        balthasar_node["balthasar<br/>Node/cAdvisor<br/>Misskey/Outline/MinIO"]:::homeServer
+        balthasar_node["balthasar<br/>Node/cAdvisor<br/>Misskey/Outline/MinIO/Jitsi"]:::homeServer
         joseph_node["joseph<br/>Node Exporter<br/>TrueNAS SCALE"]:::homeServer
         raspberry_node["raspberrypi<br/>Node Exporter<br/>Minecraft"]:::homeServer
-        linode_node["linode_prox<br/>Media Proxy/Summaly"]:::homeServer
+        linode_node["linode_prox<br/>Media Proxy/Summaly/Coturn"]:::homeServer
         proxmox_node["Proxmox VMs<br/>pfSense/T-Pot/Malcolm/CTF"]:::homeServer
     end
     
@@ -315,6 +332,7 @@ graph TB
     subgraph app_notify["アプリケーション通知"]
         misskey_webhook["Misskey<br/>Webhook"]:::app
         backup_notify["バックアップ<br/>結果通知"]:::app
+        jitsi_webhook["Jitsi<br/>会議イベント"]:::app
     end
     
     %% External Notifications
@@ -335,6 +353,7 @@ graph TB
     %% Direct App Notifications
     misskey_webhook --> discord
     backup_notify --> discord
+    jitsi_webhook --> discord
     
     %% Apply styles
     class caspar monitoring
@@ -475,7 +494,7 @@ graph TB
             hub["yamisskey-hub-starlight<br/>ドキュメントサイト (Starlight)"]:::pages
             down["yamisskey-down<br/>メンテナンス・障害ページ"]:::pages
             anonote["yamisskey-anonote<br/>匿名ノートサービス"]:::pages
-            revision["yamisskey-revision<br/>闘消し (ノート削除ツール)"]:::pages
+            revision["yamisskey-revision<br/>闇消し (ノート削除ツール)"]:::pages
             yamidao["yamidao<br/>DAO ガバナンスサイト"]:::pages
             missmap["missmap<br/>Misskeyサーバーマップ"]:::pages
         end
@@ -521,6 +540,7 @@ classDef federation fill:#f3e8ff,stroke:#7c3aed,stroke-width:1.5px
 classDef direct fill:#dcfce7,stroke:#16a34a,stroke-width:2px
 classDef tailscale fill:#fef3c7,stroke:#d97706,stroke-width:2px
 classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
+classDef rtc fill:#fce7f3,stroke:#db2777,stroke-width:2px
 
 %% External actors
 enduser([エンドユーザー<br/>Webブラウザ]):::user
@@ -538,6 +558,7 @@ subgraph support[Support Infrastructure]
             squid[Squid プロキシ<br/>🔗 Tailscale ACL制限]:::tailscale
             warp[Cloudflare WARP<br/>drive.yami.ski除外]:::cloudflare
             cloudflared_p[Cloudflared]:::cloudflare
+            coturn[Coturn<br/>TURN/STUN Server<br/>UDP 3478, 5349<br/>UDP 49152-65535]:::rtc
         end
     end
     
@@ -548,6 +569,7 @@ subgraph support[Support Infrastructure]
             yamisskey[Misskey<br/>🔗 Tailscale接続]:::tailscale
             minio_local[MinIO<br/>オブジェクトストレージ]:::storage
             cloudflared_bc[Cloudflared]:::cloudflare
+            jitsi_stack[Jitsi Meet Stack<br/>Meet/Jicofo/JVB/Prosody]:::rtc
         end
         
         subgraph caspar_server[caspar - インフラ基盤]
@@ -564,6 +586,7 @@ enduser ==>|"①Web UI アクセス"| cloudflared_bc
 cloudflared_bc ==> nginx_misskey
 nginx_misskey ==> yamisskey
 nginx_misskey ==> minio_local
+nginx_misskey ==> jitsi_stack
 
 %% 外部サーバーからの連合リクエスト（通常線）
 external_servers -->|"②連合リクエスト"| cloudflared_bc
@@ -574,6 +597,11 @@ cloudflared_bc ==>|"MinIOアクセス"| nginx_misskey
 
 %% Misskeyから認証基盤へのTailscale経由接続
 yamisskey -.->|"🔗 Tailscale<br/>mCaptcha認証"| mcaptcha_svc
+
+%% Jitsi WebRTC NAT越え（TURN経由）
+jitsi_stack ==>|"⑦WebRTC メディア<br/>NAT越え"| coturn
+enduser ==>|"⑧TURN/STUN<br/>UDP 3478, 5349"| coturn
+coturn ==>|"メディアリレー<br/>UDP 49152-65535"| enduser
 
 %% Misskeyサーバーからの全外部通信はSquid経由
 yamisskey ==>|"④🔗 Tailscale経由<br/>全外部通信"| squid
@@ -598,6 +626,119 @@ yamisskey -.->|"プロキシバイパス<br/>API直接アクセス"| bypass_serv
 bypass_services -.->|"API結果返却<br/>（翻訳・CAPTCHA等）"| yamisskey
 ```
 
+## Jitsi Meet & Coturn Architecture
+
+```mermaid
+graph TB
+    classDef user fill:#fef9c3,stroke:#ca8a04,stroke-width:1.5px
+    classDef jitsi fill:#fce7f3,stroke:#db2777,stroke-width:2px
+    classDef turn fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
+    classDef homeServer fill:#e2e8f0,stroke:#334155,stroke-width:2px
+    classDef linode fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+
+    %% Users
+    user_a([参加者 A<br/>NAT配下]):::user
+    user_b([参加者 B<br/>NAT配下]):::user
+    user_c([参加者 C<br/>グローバルIP]):::user
+
+    subgraph internet["Internet"]
+        stun_check{{"STUN<br/>接続性チェック"}}
+    end
+
+    subgraph linode_dc["Linode (グローバルIP)"]
+        subgraph coturn_server["Coturn Server"]
+            stun_svc["STUN Service<br/>UDP/TCP 3478<br/>NAT タイプ検出"]:::turn
+            turn_svc["TURN Service<br/>UDP/TCP 5349 (TLS)<br/>メディアリレー"]:::turn
+            media_ports["Media Relay Ports<br/>UDP 49152-65535<br/>実際の音声/映像転送"]:::turn
+        end
+    end
+
+    subgraph balthasar["balthasar (自宅サーバー)"]
+        cloudflared_j[Cloudflared]:::cloudflare
+        nginx_j[Nginx Reverse Proxy<br/>HTTPS終端]:::homeServer
+        
+        subgraph jitsi_components["Jitsi Meet Stack"]
+            jitsi_web["Jitsi Meet Web<br/>React SPA<br/>会議UI"]:::jitsi
+            prosody_xmpp["Prosody XMPP<br/>シグナリング<br/>参加者管理"]:::jitsi
+            jicofo_focus["Jicofo<br/>Conference Focus<br/>会議制御"]:::jitsi
+            jvb_bridge["Jitsi Videobridge<br/>SFU (Selective Forwarding Unit)<br/>メディア配信"]:::jitsi
+        end
+    end
+
+    %% Web UI Access (HTTPS via Cloudflare Tunnel)
+    user_a -->|"①HTTPS<br/>会議参加"| cloudflared_j
+    user_b -->|"①HTTPS<br/>会議参加"| cloudflared_j
+    user_c -->|"①HTTPS<br/>会議参加"| cloudflared_j
+    cloudflared_j --> nginx_j
+    nginx_j --> jitsi_web
+
+    %% Jitsi Internal Flow
+    jitsi_web -->|"②WebSocket<br/>XMPP-over-BOSH"| prosody_xmpp
+    prosody_xmpp --> jicofo_focus
+    jicofo_focus --> jvb_bridge
+
+    %% ICE Candidate Gathering
+    user_a -.->|"③STUN Request<br/>自己IPアドレス取得"| stun_svc
+    user_b -.->|"③STUN Request"| stun_svc
+    stun_svc -.->|"Public IP返却"| user_a
+    stun_svc -.->|"Public IP返却"| user_b
+
+    %% Direct P2P (2人の場合、可能なら)
+    user_a <-.->|"④P2P Direct<br/>(可能な場合)"| user_c
+
+    %% TURN Relay (NAT越え必要な場合)
+    user_a ==>|"⑤TURN Relay<br/>NAT越え不可時"| turn_svc
+    user_b ==>|"⑤TURN Relay"| turn_svc
+    turn_svc ==> media_ports
+    media_ports ==>|"メディアリレー"| jvb_bridge
+
+    %% JVB to Users (SFU Mode - 3人以上)
+    jvb_bridge ==>|"⑥SFU配信<br/>UDP/TCP 10000"| user_a
+    jvb_bridge ==>|"⑥SFU配信"| user_b
+    jvb_bridge ==>|"⑥SFU配信"| user_c
+
+    %% JVB Config pointing to TURN
+    jvb_bridge -.->|"TURN設定<br/>NAT越えフォールバック"| coturn_server
+```
+
+## Coturn Configuration Details
+
+```mermaid
+graph LR
+    classDef port fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    classDef config fill:#fef3c7,stroke:#d97706,stroke-width:2px
+    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:2px
+
+    subgraph coturn_config["Coturn 設定"]
+        direction TB
+        
+        subgraph ports["ポート構成"]
+            p3478["UDP/TCP 3478<br/>STUN/TURN 標準"]:::port
+            p5349["UDP/TCP 5349<br/>TURN over TLS"]:::port
+            p443["TCP 443<br/>TURN over TLS<br/>(Firewall回避用)"]:::port
+            p_range["UDP 49152-65535<br/>メディアリレー範囲"]:::port
+        end
+        
+        subgraph auth["認証設定"]
+            static_auth["Static Auth<br/>共有シークレット"]:::config
+            realm["Realm<br/>turn.yami.ski"]:::config
+            users["認証ユーザー<br/>Jitsi専用"]:::security
+        end
+        
+        subgraph tls["TLS設定"]
+            cert["Let's Encrypt証明書<br/>turn.yami.ski"]:::security
+            cipher["TLS 1.2+<br/>強力な暗号スイート"]:::security
+        end
+        
+        subgraph limits["制限設定"]
+            bps["帯域制限<br/>ユーザーあたり"]:::config
+            quota["接続数制限<br/>同時セッション数"]:::config
+            denied["Denied Peers<br/>プライベートIP除外"]:::security
+        end
+    end
+```
+
 ## Server Role Summary
 
 ```mermaid
@@ -607,6 +748,8 @@ graph LR
     classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:2px
     classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px
     classDef game fill:#fef3c7,stroke:#d97706,stroke-width:2px
+    classDef rtc fill:#fce7f3,stroke:#db2777,stroke-width:2px
+    classDef cloud fill:#f0fdfa,stroke:#0f766e,stroke-width:2px
     
     subgraph roles["サーバー役割分担"]
         direction TB
@@ -614,7 +757,8 @@ graph LR
         subgraph balthasar_role["balthasar<br/>本番・ユーザー向け専用"]
             b1["ActivityPub<br/>yamisskey / Neo-Quesdon / Yui"]:::production
             b2["Matrix<br/>Synapse / Element"]:::production
-            b3["Apps<br/>Outline / CryptPad / MinIO"]:::production
+            b3["Jitsi Meet<br/>Meet / Jicofo / JVB / Prosody"]:::rtc
+            b4["Apps<br/>Outline / CryptPad / MinIO"]:::production
         end
         
         subgraph caspar_role["caspar<br/>インフラ・監視・セキュリティ基盤"]
@@ -622,6 +766,12 @@ graph LR
             c2["IaC<br/>Terraform / Ansible"]:::infra
             c3["認証・セキュリティ<br/>Authentik / mCaptcha"]:::security
             c4["実験系<br/>Nostr (Nostream / Rabbit)"]:::infra
+        end
+        
+        subgraph linode_role["Linode<br/>外部プロキシ・NAT越え"]
+            l1["Media/Summary Proxy<br/>独自IP・連合用"]:::cloud
+            l2["Squid + WARP<br/>外部通信プロキシ"]:::cloud
+            l3["Coturn<br/>TURN/STUN Server<br/>WebRTC NAT越え"]:::rtc
         end
         
         subgraph proxmox_role["Proxmox<br/>セキュリティ実験クラスター"]
