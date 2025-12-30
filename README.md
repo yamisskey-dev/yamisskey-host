@@ -19,7 +19,6 @@ graph TB
     classDef appsStyle fill:#fef3c7,stroke:#ca8a04,stroke-width:2px
     classDef monitoring fill:#d1fae5,stroke:#047857,stroke-width:2px
     classDef iac fill:#f0f9ff,stroke:#0369a1,stroke-width:2px
-    classDef rtcStyle fill:#fce7f3,stroke:#db2777,stroke-width:2px
     
     %% Main Infrastructure
     subgraph main_servers[Main Servers]
@@ -39,13 +38,6 @@ graph TB
             subgraph matrix[Matrix]
                 synapse[Synapse]:::service
                 element[Element]:::service
-            end
-            
-            subgraph rtc[Real-Time Communication]
-                jitsi_meet[Jitsi Meet<br/>Web UI]:::service
-                jicofo[Jicofo<br/>Conference Focus]:::service
-                jvb[Jitsi Videobridge<br/>Media Server]:::service
-                prosody[Prosody<br/>XMPP Server]:::service
             end
             
             subgraph apps[Apps]
@@ -99,14 +91,13 @@ graph TB
     outline -.->|Tailscale| authentik
     yamisskey -.->|Tailscale| mcaptcha
     
-    %% Jitsi internal connections
-    jitsi_meet --> prosody
-    jicofo --> prosody
-    jvb --> prosody
-    
-    %% Other core connections
+    %% Matrix internal connections
     element --> synapse
+    
+    %% Minecraft connections
     minecraft --> playig
+    
+    %% Monitoring connections
     prometheus --> grafana
     
     %% Cloudflared to Nginx connections
@@ -120,7 +111,6 @@ graph TB
     nginx_b --> synapse
     nginx_b --> outline
     nginx_b --> cryptpad
-    nginx_b --> jitsi_meet
     
     %% Nginx to services - caspar
     nginx_c --> prometheus
@@ -142,7 +132,6 @@ graph TB
     class activitypub activitypubStyle
     class nostr nostrStyle
     class matrix matrixStyle
-    class rtc rtcStyle
     class apps appsStyle
     class games service
     class auth_services security
@@ -221,21 +210,19 @@ graph TB
     vmbr2 --> ctf_vm
     vmbr3 --> pfsense_vm
     
-    %% Storage connections
-    local_lvm --> pfsense_vm
-    local_lvm --> tpot_vm
-    local_lvm --> malcolm_vm
-    local_lvm --> ctf_vm
+    %% Internal VM connections
+    pfsense --> vmbr1
+    pfsense --> vmbr2
+    pfsense --> vmbr3
     
-    %% Service connections
-    tpot --> kibana_tpot
-    malcolm --> elasticsearch
-    suricata_malcolm --> malcolm
-    ctfd --> challenge_containers
+    %% Storage connections
+    local --> vms
+    local_lvm --> vms
     
     %% Apply styles
     class proxmox homeServer
-    class pfsense_vm,tpot_vm,malcolm_vm,ctf_vm homeServer
+    class pfsense_vm,tpot_vm,malcolm_vm security
+    class ctf_vm ctf
 ```
 
 ## Infrastructure as Code & Automation Systems
@@ -244,120 +231,169 @@ graph TB
 graph TB
     %% Style definitions
     classDef iac fill:#f0f9ff,stroke:#0369a1,stroke-width:2px
-    classDef automation fill:#cffafe,stroke:#06b6d4,stroke-width:2px
-    classDef homeServer fill:#e2e8f0,stroke:#334155,stroke-width:2px
-    classDef alert fill:#fef3c7,stroke:#d97706,stroke-width:2px
-
-    %% Source Control
-    subgraph source["ソースコード管理"]
-        git["Git Repository<br/>Infrastructure as Code"]:::iac
-        actions["GitHub Actions<br/>CI/CD Pipeline"]:::automation
-    end
-
-    %% Control Plane
-    subgraph caspar["caspar - 制御ハブ"]
-        terraform["Terraform<br/>インフラ定義・プロビジョニング"]:::iac
-        ansible["Ansible<br/>設定管理・デプロイ"]:::automation
-        cloud_init["Cloud-init<br/>VM初期化"]:::automation
-    end
-
-    %% Managed Infrastructure
-    subgraph infra["管理対象インフラ"]
-        subgraph proxmox_infra["Proxmox (Terraform管理)"]
-            proxmox_vms["Virtual Machines<br/>• pfSense (4c/8GB/32GB)<br/>• T-Pot (8c/24GB/200GB)<br/>• Malcolm (12c/32GB/500GB)<br/>• CTF (4c/8GB/100GB)"]:::homeServer
-            proxmox_storage["Storage: local-lvm"]:::homeServer
-            proxmox_network["Networks: vmbr0-3"]:::homeServer
-        end
-        physical["物理サーバー (Ansible管理)<br/>• balthasar<br/>• caspar"]:::homeServer
-        truenas["TrueNAS (Ansible管理)<br/>ストレージ・バックアップ"]:::homeServer
-        linode["Linode (Ansible管理)<br/>• linode-proxy<br/>• Coturn"]:::homeServer
-    end
-
-    %% Notifications
-    slack["Slack<br/>デプロイ通知"]:::alert
-    discord["Discord<br/>変更通知"]:::alert
-
-    %% Workflow
-    git --> actions
-    actions --> terraform
-    actions --> ansible
+    classDef ansible fill:#ee0000,stroke:#cc0000,stroke-width:2px,color:#ffffff
+    classDef terraform fill:#7b42bc,stroke:#5c32a8,stroke-width:2px,color:#ffffff
+    classDef target fill:#e2e8f0,stroke:#334155,stroke-width:1.5px
+    classDef proxmox fill:#e86c00,stroke:#cc5500,stroke-width:2px,color:#ffffff
+    classDef git fill:#24292e,stroke:#1b1f23,stroke-width:2px,color:#ffffff
+    classDef state fill:#fef3c7,stroke:#d97706,stroke-width:1.5px
     
-    terraform -->|VM作成・更新<br/>ストレージ割り当て<br/>ネットワーク設定| proxmox_infra
-    ansible -->|設定適用| physical
-    ansible -->|設定適用| truenas
-    ansible -->|設定適用| linode
-    cloud_init -->|初期設定| proxmox_vms
-
-    %% Notifications
-    actions --> slack
-    terraform --> discord
-    ansible --> discord
-
+    subgraph iac_hub["caspar - IaC Hub"]
+        direction TB
+        
+        subgraph ansible_system["Ansible Automation"]
+            ansible_core["Ansible Core"]:::ansible
+            inventory["Inventory<br/>ホスト定義"]:::iac
+            playbooks["Playbooks<br/>構成定義"]:::iac
+            roles["Roles<br/>再利用可能モジュール"]:::iac
+            vault["Ansible Vault<br/>機密情報暗号化"]:::iac
+        end
+        
+        subgraph terraform_system["Terraform IaC"]
+            terraform_core["Terraform"]:::terraform
+            tf_state["State File<br/>R2 Backend"]:::state
+            tf_providers["Providers<br/>Proxmox/Cloudflare"]:::iac
+            tf_modules["Modules<br/>VM/Network定義"]:::iac
+        end
+        
+        git_repo["Git Repository<br/>バージョン管理"]:::git
+    end
+    
+    subgraph managed_infra["Managed Infrastructure"]
+        direction TB
+        
+        subgraph physical["物理サーバー (Ansible管理)"]
+            balthasar_target["balthasar<br/>本番サービス"]:::target
+            caspar_target["caspar<br/>監視・IaC"]:::target
+            truenas_target["TrueNAS<br/>ストレージ"]:::target
+            rpi_target["Raspberry Pi<br/>Minecraft"]:::target
+        end
+        
+        subgraph virtual["仮想環境 (Terraform管理)"]
+            proxmox_api["Proxmox API"]:::proxmox
+            proxmox_vms["VMs<br/>pfSense/T-Pot/Malcolm/CTF"]:::target
+        end
+        
+        subgraph cloud["クラウド (Terraform管理)"]
+            cf_workers["Cloudflare Workers"]:::target
+            cf_pages["Cloudflare Pages"]:::target
+            cf_dns["Cloudflare DNS"]:::target
+            linode_vps["Linode VPS"]:::target
+        end
+    end
+    
+    %% Ansible connections
+    ansible_core --> inventory
+    ansible_core --> playbooks
+    ansible_core --> roles
+    playbooks --> vault
+    
+    ansible_core -->|"SSH"| balthasar_target
+    ansible_core -->|"SSH"| caspar_target
+    ansible_core -->|"SSH"| truenas_target
+    ansible_core -->|"SSH"| rpi_target
+    
+    %% Terraform connections
+    terraform_core --> tf_providers
+    terraform_core --> tf_modules
+    terraform_core --> tf_state
+    
+    terraform_core -->|"API"| proxmox_api
+    proxmox_api --> proxmox_vms
+    terraform_core -->|"API"| cf_workers
+    terraform_core -->|"API"| cf_pages
+    terraform_core -->|"API"| cf_dns
+    terraform_core -->|"API"| linode_vps
+    
+    %% Git connections
+    git_repo --> ansible_system
+    git_repo --> terraform_system
+    
     %% Apply styles
-    class caspar homeServer
-    class proxmox_infra homeServer
+    class iac_hub iac
 ```
 
-## Monitoring ＆ Alert System
+## Monitoring & Alert System
 
 ```mermaid
 graph TB
     %% Style definitions
     classDef monitoring fill:#d1fae5,stroke:#047857,stroke-width:2px
-    classDef homeServer fill:#e2e8f0,stroke:#334155,stroke-width:2px
-    classDef alert fill:#fef3c7,stroke:#d97706,stroke-width:2px
-    classDef app fill:#fce7f3,stroke:#be185d,stroke-width:1.5px
-    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
+    classDef alerting fill:#fee2e2,stroke:#991b1b,stroke-width:2px
+    classDef exporter fill:#f0f9ff,stroke:#0369a1,stroke-width:1.5px
+    classDef external fill:#fef3c7,stroke:#d97706,stroke-width:1.5px
+    classDef target fill:#e2e8f0,stroke:#334155,stroke-width:1px
     
-    %% Monitoring Hub (caspar) - セルフホスト化
-    subgraph caspar["🏛️ caspar - 監視・セキュリティハブ (セルフホスト)"]
-        prometheus["Prometheus Server<br/>9090<br/>メトリクス収集・保存"]:::monitoring
-        grafana["Grafana<br/>3000<br/>ダッシュボード"]:::monitoring
-        uptime["Uptime Kuma<br/>3009<br/>死活監視"]:::monitoring
-        alertmgr["AlertManager<br/>9093<br/>通知管理"]:::alert
-        authentik_mon["Authentik<br/>認証基盤"]:::security
-        mcaptcha_mon["mCaptcha<br/>CAPTCHA基盤"]:::security
+    subgraph caspar_monitoring["caspar - Monitoring Hub"]
+        direction TB
+        
+        subgraph collection["メトリクス収集"]
+            prometheus["Prometheus<br/>時系列DB"]:::monitoring
+            uptime_kuma["Uptime Kuma<br/>外形監視"]:::monitoring
+        end
+        
+        subgraph visualization["可視化"]
+            grafana["Grafana<br/>ダッシュボード"]:::monitoring
+        end
+        
+        subgraph alerting_system["アラート"]
+            alertmanager["AlertManager<br/>アラート管理"]:::alerting
+        end
     end
     
-    %% All Monitored Systems (consolidated)
-    subgraph systems["監視対象システム"]
-        balthasar_node["balthasar<br/>Node/cAdvisor<br/>Misskey/Outline/MinIO/Jitsi"]:::homeServer
-        joseph_node["joseph<br/>Node Exporter<br/>TrueNAS SCALE"]:::homeServer
-        raspberry_node["raspberrypi<br/>Node Exporter<br/>Minecraft"]:::homeServer
-        linode_node["linode_prox<br/>Media Proxy/Summaly/Coturn"]:::homeServer
-        proxmox_node["Proxmox VMs<br/>pfSense/T-Pot/Malcolm/CTF"]:::homeServer
+    subgraph exporters["Exporters (各サーバー)"]
+        direction TB
+        
+        subgraph balthasar_exp["balthasar"]
+            node_exp_b["Node Exporter<br/>システムメトリクス"]:::exporter
+            nginx_exp_b["Nginx Exporter<br/>リクエスト統計"]:::exporter
+            postgres_exp["PostgreSQL Exporter<br/>DB統計"]:::exporter
+            redis_exp["Redis Exporter<br/>キャッシュ統計"]:::exporter
+        end
+        
+        subgraph caspar_exp["caspar"]
+            node_exp_c["Node Exporter"]:::exporter
+            nginx_exp_c["Nginx Exporter"]:::exporter
+        end
+        
+        subgraph other_exp["その他"]
+            node_exp_nas["TrueNAS<br/>Node Exporter"]:::exporter
+            node_exp_rpi["Raspberry Pi<br/>Node Exporter"]:::exporter
+            node_exp_linode["Linode<br/>Node Exporter"]:::exporter
+        end
     end
     
-    %% Application Notifications
-    subgraph app_notify["アプリケーション通知"]
-        misskey_webhook["Misskey<br/>Webhook"]:::app
-        backup_notify["バックアップ<br/>結果通知"]:::app
-        jitsi_webhook["Jitsi<br/>会議イベント"]:::app
+    subgraph notification["通知先"]
+        direction TB
+        discord_webhook["Discord Webhook<br/>運用チャンネル"]:::external
+        betterstack["Better Stack<br/>外部死活監視"]:::external
     end
     
-    %% External Notifications
-    discord["Discord"]:::alert
-    slack["Slack"]:::alert
+    %% Collection flows
+    prometheus -->|"scrape"| node_exp_b
+    prometheus -->|"scrape"| nginx_exp_b
+    prometheus -->|"scrape"| postgres_exp
+    prometheus -->|"scrape"| redis_exp
+    prometheus -->|"scrape"| node_exp_c
+    prometheus -->|"scrape"| nginx_exp_c
+    prometheus -->|"scrape"| node_exp_nas
+    prometheus -->|"scrape"| node_exp_rpi
+    prometheus -->|"scrape"| node_exp_linode
     
-    %% Monitoring Flow (Full Prometheus)
-    systems --> prometheus
+    %% Visualization
     prometheus --> grafana
+    uptime_kuma --> grafana
     
-    %% Alert Flow
-    uptime --> alertmgr
-    prometheus -->|アラートルール| alertmgr
+    %% Alerting
+    prometheus --> alertmanager
+    uptime_kuma --> alertmanager
+    alertmanager --> discord_webhook
     
-    alertmgr --> discord
-    alertmgr --> slack
-    
-    %% Direct App Notifications
-    misskey_webhook --> discord
-    backup_notify --> discord
-    jitsi_webhook --> discord
+    %% External monitoring
+    betterstack -->|"外部から監視"| uptime_kuma
     
     %% Apply styles
-    class caspar monitoring
-    class systems homeServer
+    class caspar_monitoring monitoring
 ```
 
 ## Storage & Backup Strategy
@@ -366,43 +402,38 @@ graph TB
 graph TB
     %% Style definitions
     classDef server fill:#e2e8f0,stroke:#334155,stroke-width:2px
-    classDef service fill:#f8fafc,stroke:#64748b,stroke-width:1px
-    classDef backup fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px
+    classDef beelink fill:#fef3c7,stroke:#d97706,stroke-width:2px
     classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
-    classDef beelink fill:#ffb88c,stroke:#ffffff,stroke-width:2px,color:#ffffff
-    classDef cloud fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
-    classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
-    classDef zfs fill:#4c1d95,stroke:#c4b5fd,stroke-width:2px,color:#ffffff
-    classDef encrypted fill:#fee2e2,stroke:#991b1b,stroke-width:2px
+    classDef backup fill:#dbeafe,stroke:#1d4ed8,stroke-width:1.5px
+    classDef cloud fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    classDef encrypted fill:#fee2e2,stroke:#dc2626,stroke-width:2px
+    classDef service fill:#f8fafc,stroke:#64748b,stroke-width:1px
     classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
-    
-    %% External storage
-    subgraph external["外部ストレージ（オフサイト）"]
-        r2["Cloudflare R2<br/>日次DBダンプ<br/>世代管理<br/>11 nines耐久性"]:::cloud
-        filen["Filen<br/>MinIO画像バックアップ<br/>暗号化保存"]:::encrypted
+    classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
+
+    %% External Backup Destinations
+    subgraph external_backup[クラウドバックアップ]
+        r2["Cloudflare R2<br/>【DBダンプ専用】<br/>暗号化済み<br/>世代管理"]:::cloud
+        filen["Filen E2EE<br/>【MinIO画像】<br/>E2E暗号化<br/>差分同期<br/>5-15分/日"]:::encrypted
     end
-    
-    %% Internal network
-    subgraph internal["ローカルネットワーク"]
-        
-        %% Beelink TrueNAS
-        subgraph beelink_nas["Beelink ME mini - TrueNAS SCALE 24.10"]
-            subgraph m2_slots["M.2 スロット構成 (6個)"]
-                emmc["eMMC 64GB<br/>TrueNAS OS"]:::storage
-                slot23["Slot2-3: 2TB NVMe×2<br/>ZFS Mirror Pool"]:::zfs
-                slot456["Slot4-6: 拡張用<br/>将来RAID-Z2対応"]:::storage
+
+    %% Local Infrastructure
+    subgraph local_infra[自宅インフラ]
+        %% TrueNAS (Beelink ME)
+        subgraph beelink_nas[Beelink ME mini - TrueNAS SCALE<br/>N100, 16GB DDR5, 2×2.5G LAN]
+            emmc["eMMC 128GB<br/>TrueNAS OS"]:::storage
+            
+            subgraph slot23["NVMe 2TB × 2"]
+                zfs_pool["ZFS Mirror Pool<br/>実効2TB<br/>圧縮有効"]:::storage
             end
             
-            subgraph truenas_services["TrueNAS Services (Docker統一)"]
-                zfs_pool["ZFS Pool (Mirror)<br/>【ローカルバックアップ】<br/>・DBダンプ保存<br/>・MinIO画像保存<br/>・ZFSスナップショット<br/>・圧縮・重複排除<br/>・高速リストア可能"]:::zfs
-                backup_svc["Backup Services<br/>rsync server<br/>rclone Filen sync"]:::backup
-                node_exporter["Node Exporter (Docker)<br/>監視エージェント"]:::service
+            subgraph truenas_services[TrueNAS Services]
+                backup_svc["Backup Service<br/>rsync受信<br/>rclone同期<br/>ZFS Snapshot"]:::backup
+                node_exporter["Node Exporter<br/>監視エージェント"]:::service
             end
-            
-            dual_lan["デュアル2.5G LAN<br/>LAN1: メイン<br/>LAN2: 管理用"]:::beelink
         end
         
-        %% Main servers
+        %% Servers
         subgraph servers["サーバー群"]
             subgraph balthasar["balthasar 本番"]
                 cloudflared_bh[Cloudflared]:::cloudflare
@@ -494,7 +525,7 @@ graph TB
             hub["yamisskey-hub-starlight<br/>ドキュメントサイト (Starlight)"]:::pages
             down["yamisskey-down<br/>メンテナンス・障害ページ"]:::pages
             anonote["yamisskey-anonote<br/>匿名ノートサービス"]:::pages
-            revision["yamisskey-revision<br/>闇消し (ノート削除ツール)"]:::pages
+            revision["yamisskey-revision<br/>闘消し (ノート削除ツール)"]:::pages
             yamidao["yamidao<br/>DAO ガバナンスサイト"]:::pages
             missmap["missmap<br/>Misskeyサーバーマップ"]:::pages
         end
@@ -558,7 +589,7 @@ subgraph support[Support Infrastructure]
             squid[Squid プロキシ<br/>🔗 Tailscale ACL制限]:::tailscale
             warp[Cloudflare WARP<br/>drive.yami.ski除外]:::cloudflare
             cloudflared_p[Cloudflared]:::cloudflare
-            coturn[Coturn<br/>TURN/STUN Server<br/>UDP 3478, 5349<br/>UDP 49152-65535]:::rtc
+            coturn[Coturn<br/>TURN/STUN Server<br/>Synapse用<br/>UDP 3478, 5349<br/>UDP 49152-65535]:::rtc
         end
     end
     
@@ -569,7 +600,7 @@ subgraph support[Support Infrastructure]
             yamisskey[Misskey<br/>🔗 Tailscale接続]:::tailscale
             minio_local[MinIO<br/>オブジェクトストレージ]:::storage
             cloudflared_bc[Cloudflared]:::cloudflare
-            jitsi_stack[Jitsi Meet Stack<br/>Meet/Jicofo/JVB/Prosody]:::rtc
+            synapse_server[Synapse<br/>Matrix Homeserver]:::service
         end
         
         subgraph caspar_server[caspar - インフラ基盤]
@@ -586,7 +617,7 @@ enduser ==>|"①Web UI アクセス"| cloudflared_bc
 cloudflared_bc ==> nginx_misskey
 nginx_misskey ==> yamisskey
 nginx_misskey ==> minio_local
-nginx_misskey ==> jitsi_stack
+nginx_misskey ==> synapse_server
 
 %% 外部サーバーからの連合リクエスト（通常線）
 external_servers -->|"②連合リクエスト"| cloudflared_bc
@@ -598,13 +629,12 @@ cloudflared_bc ==>|"MinIOアクセス"| nginx_misskey
 %% Misskeyから認証基盤へのTailscale経由接続
 yamisskey -.->|"🔗 Tailscale<br/>mCaptcha認証"| mcaptcha_svc
 
-%% Jitsi WebRTC NAT越え（TURN経由）
-jitsi_stack ==>|"⑦WebRTC メディア<br/>NAT越え"| coturn
-enduser ==>|"⑧TURN/STUN<br/>UDP 3478, 5349"| coturn
-coturn ==>|"メディアリレー<br/>UDP 49152-65535"| enduser
+%% Matrix VoIP (TURN経由)
+synapse_server -.->|"④TURN設定<br/>turn_uris"| coturn
+enduser ==>|"⑤Matrix 1:1通話<br/>STUN/TURN"| coturn
 
 %% Misskeyサーバーからの全外部通信はSquid経由
-yamisskey ==>|"④🔗 Tailscale経由<br/>全外部通信"| squid
+yamisskey ==>|"⑥🔗 Tailscale経由<br/>全外部通信"| squid
 squid --> warp
 
 %% WARPからの分岐
@@ -616,10 +646,10 @@ cloudflared_p -.-> summaryproxy
 squid ==>|"MediaProxy<br/>アクセス"| cloudflared_p
 
 %% MediaProxyからMisskeyへ画像処理結果を返却
-mediaproxy ==>|"⑤画像取得/変換結果<br/>返却"| cloudflared_bc
+mediaproxy ==>|"⑦画像取得/変換結果<br/>返却"| cloudflared_bc
 
 %% SummaryProxyからの返却
-summaryproxy -.->|"⑥URL情報取得結果<br/>返却"| cloudflared_bc
+summaryproxy -.->|"⑧URL情報取得結果<br/>返却"| cloudflared_bc
 
 %% プロキシバイパス対象（特定APIサービス）
 yamisskey -.->|"プロキシバイパス<br/>API直接アクセス"| bypass_services
