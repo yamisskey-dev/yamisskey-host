@@ -67,8 +67,7 @@ graph TB
             end
             
             subgraph nostr[Nostr - 実験系]
-                nostream[Nostream]:::service
-                rabbit[Rabbit]:::service
+                nostr_rs_relay[nostr-rs-relay]:::service
             end
         end
         
@@ -118,8 +117,7 @@ graph TB
     nginx_c --> uptime
     nginx_c --> authentik
     nginx_c --> mcaptcha
-    nginx_c --> nostream
-    nginx_c --> rabbit
+    nginx_c --> nostr_rs_relay
     
     %% External connections
     playig --> internet
