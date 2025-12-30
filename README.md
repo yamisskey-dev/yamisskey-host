@@ -69,6 +69,10 @@ graph TB
             subgraph nostr[Nostr - 実験系]
                 nostr_rs_relay[nostr-rs-relay]:::service
             end
+
+            subgraph test_env[テスト環境]
+                misskey_beta[Misskey Beta<br/>テスト用]:::service
+            end
         end
         
         subgraph raspberrypi[raspberrypi - Minecraft専用<br/>NVMe SSD 2TB, 8GB RAM]
@@ -118,6 +122,7 @@ graph TB
     nginx_c --> authentik
     nginx_c --> mcaptcha
     nginx_c --> nostr_rs_relay
+    nginx_c --> misskey_beta
     
     %% External connections
     playig --> internet
