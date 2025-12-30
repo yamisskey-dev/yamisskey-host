@@ -17,12 +17,14 @@ graph TB
     classDef nostrStyle fill:#fed7aa,stroke:#ea580c,stroke-width:2px
     classDef matrixStyle fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px
     classDef appsStyle fill:#fef3c7,stroke:#ca8a04,stroke-width:2px
+    classDef monitoring fill:#d1fae5,stroke:#047857,stroke-width:2px
+    classDef iac fill:#f0f9ff,stroke:#0369a1,stroke-width:2px
     
     %% Main Infrastructure
     subgraph main_servers[Main Servers]
         direction LR
         
-        subgraph balthasar[balthasar - 本番環境]
+        subgraph balthasar[balthasar - 本番環境<br/>ユーザー向けサービス専用]
             direction TB
             cloudflared_b[Cloudflared]:::cloudflare
             nginx_b[Nginx + ModSecurity<br/>Reverse Proxy]:::proxy
@@ -31,11 +33,6 @@ graph TB
                 yui[Misskey Bot]:::service
                 yamisskey[Misskey]:::service
                 neoquesdon[Neo-Quesdon]:::service
-            end
-            
-            subgraph nostr[Nostr]
-               nostream[Nostream]:::service
-               rabbit[Rabbit]:::service
             end
             
             subgraph matrix[Matrix]
@@ -48,23 +45,31 @@ graph TB
                 cryptpad[CryptPad]:::service
                 minio[MinIO]:::storage
             end
-
-            subgraph auth_services[認証・セキュリティ]
-                authentik[Authentik]:::security
-                mcaptcha[mCaptcha]:::security
-            end
         end
         
-        subgraph caspar[caspar - 実験・テスト環境]
+        subgraph caspar[caspar - インフラ・監視・セキュリティ基盤]
             direction TB
             cloudflared_c[Cloudflared]:::cloudflare
             nginx_c[Nginx + ModSecurity<br/>Reverse Proxy]:::proxy
             
-            subgraph CTF[CTF]
-                ctfd[CTFd]:::service
-                vm[VM]:::service
+            subgraph monitoring_services[監視・IaC]
+                prometheus[Prometheus]:::monitoring
+                grafana[Grafana]:::monitoring
+                uptime[Uptime Kuma]:::monitoring
+                alertmgr[AlertManager]:::monitoring
+                terraform[Terraform]:::iac
+                ansible[Ansible]:::iac
             end
             
+            subgraph auth_services[認証・セキュリティ]
+                authentik[Authentik]:::security
+                mcaptcha[mCaptcha]:::security
+            end
+            
+            subgraph nostr[Nostr - 実験系]
+                nostream[Nostream]:::service
+                rabbit[Rabbit]:::service
+            end
         end
         
         subgraph raspberrypi[raspberrypi - Minecraft専用<br/>NVMe SSD 2TB, 8GB RAM]
@@ -82,13 +87,14 @@ graph TB
     %% Cloudflared to MinIO connections
     nginx_b --> minio
 
-    %% Local authentication connections (within balthasar)
-    outline --> authentik
-    yamisskey --> mcaptcha
+    %% Cross-server authentication connections (via Tailscale)
+    outline -.->|Tailscale| authentik
+    yamisskey -.->|Tailscale| mcaptcha
     
     %% Other core connections
     element --> synapse
     minecraft --> playig
+    prometheus --> grafana
     
     %% Cloudflared to Nginx connections
     cloudflared_b --> nginx_b
@@ -97,18 +103,19 @@ graph TB
     %% Nginx to services - balthasar
     nginx_b --> yamisskey
     nginx_b --> neoquesdon
-    nginx_b --> ai
-    nginx_b --> nostream
-    nginx_b --> rabbit
     nginx_b --> element
     nginx_b --> synapse
     nginx_b --> outline
     nginx_b --> cryptpad
-    nginx_b --> authentik
-    nginx_b --> mcaptcha
     
     %% Nginx to services - caspar
-    nginx_c --> ctfd
+    nginx_c --> prometheus
+    nginx_c --> grafana
+    nginx_c --> uptime
+    nginx_c --> authentik
+    nginx_c --> mcaptcha
+    nginx_c --> nostream
+    nginx_c --> rabbit
     
     %% External connections
     playig --> internet
@@ -122,8 +129,9 @@ graph TB
     class nostr nostrStyle
     class matrix matrixStyle
     class apps appsStyle
-    class games,CTF service
+    class games service
     class auth_services security
+    class monitoring_services monitoring
     class cloudflared_b,cloudflared_c cloudflare
     class nginx_b,nginx_c proxy
 ```
@@ -139,6 +147,7 @@ graph TB
     classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
     classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
     classDef network fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef ctf fill:#fef3c7,stroke:#d97706,stroke-width:2px
     
     %% Proxmox Host
     subgraph proxmox["GMKtec NucBox K10 - Proxmox VE<br/>Core i9-13900HK, 64GB DDR5, 1TB NVMe"]
@@ -180,6 +189,13 @@ graph TB
                suricata_malcolm["Suricata IDS"]:::security
                kibana_malcolm["Kibana Analytics"]:::monitoring
            end
+           
+           subgraph ctf_vm["CTF VM - 4c/8GB/100GB"]
+               ctfd["CTFd<br/>競技プラットフォーム"]:::ctf
+               challenge_containers["Challenge Containers<br/>Docker隔離環境"]:::ctf
+               ctf_web["CTF Web Challenges"]:::ctf
+               ctf_pwn["Pwn/Reversing Challenges"]:::ctf
+           end
        end
     end
     
@@ -187,21 +203,24 @@ graph TB
     vmbr0 --> pfsense_vm
     vmbr2 --> tpot_vm
     vmbr2 --> malcolm_vm
+    vmbr2 --> ctf_vm
     vmbr3 --> pfsense_vm
     
     %% Storage connections
     local_lvm --> pfsense_vm
     local_lvm --> tpot_vm
     local_lvm --> malcolm_vm
+    local_lvm --> ctf_vm
     
     %% Service connections
     tpot --> kibana_tpot
     malcolm --> elasticsearch
     suricata_malcolm --> malcolm
+    ctfd --> challenge_containers
     
     %% Apply styles
     class proxmox homeServer
-    class pfsense_vm,tpot_vm,malcolm_vm homeServer
+    class pfsense_vm,tpot_vm,malcolm_vm,ctf_vm homeServer
 ```
 
 ## Infrastructure as Code & Automation Systems
@@ -230,7 +249,7 @@ graph TB
     %% Managed Infrastructure
     subgraph infra["管理対象インフラ"]
         subgraph proxmox_infra["Proxmox (Terraform管理)"]
-            proxmox_vms["Virtual Machines<br/>• pfSense (4c/8GB/32GB)<br/>• T-Pot (8c/24GB/200GB)<br/>• Malcolm (12c/32GB/500GB)"]:::homeServer
+            proxmox_vms["Virtual Machines<br/>• pfSense (4c/8GB/32GB)<br/>• T-Pot (8c/24GB/200GB)<br/>• Malcolm (12c/32GB/500GB)<br/>• CTF (4c/8GB/100GB)"]:::homeServer
             proxmox_storage["Storage: local-lvm"]:::homeServer
             proxmox_network["Networks: vmbr0-3"]:::homeServer
         end
@@ -271,13 +290,16 @@ graph TB
     classDef homeServer fill:#e2e8f0,stroke:#334155,stroke-width:2px
     classDef alert fill:#fef3c7,stroke:#d97706,stroke-width:2px
     classDef app fill:#fce7f3,stroke:#be185d,stroke-width:1.5px
+    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
     
     %% Monitoring Hub (caspar) - セルフホスト化
-    subgraph caspar["🏛️ caspar - 監視ハブ (セルフホスト)"]
+    subgraph caspar["🏛️ caspar - 監視・セキュリティハブ (セルフホスト)"]
         prometheus["Prometheus Server<br/>9090<br/>メトリクス収集・保存"]:::monitoring
         grafana["Grafana<br/>3000<br/>ダッシュボード"]:::monitoring
         uptime["Uptime Kuma<br/>3009<br/>死活監視"]:::monitoring
         alertmgr["AlertManager<br/>9093<br/>通知管理"]:::alert
+        authentik_mon["Authentik<br/>認証基盤"]:::security
+        mcaptcha_mon["mCaptcha<br/>CAPTCHA基盤"]:::security
     end
     
     %% All Monitored Systems (consolidated)
@@ -286,6 +308,7 @@ graph TB
         joseph_node["joseph<br/>Node Exporter<br/>TrueNAS SCALE"]:::homeServer
         raspberry_node["raspberrypi<br/>Node Exporter<br/>Minecraft"]:::homeServer
         linode_node["linode_prox<br/>Media Proxy/Summaly"]:::homeServer
+        proxmox_node["Proxmox VMs<br/>pfSense/T-Pot/Malcolm/CTF"]:::homeServer
     end
     
     %% Application Notifications
@@ -452,7 +475,7 @@ graph TB
             hub["yamisskey-hub-starlight<br/>ドキュメントサイト (Starlight)"]:::pages
             down["yamisskey-down<br/>メンテナンス・障害ページ"]:::pages
             anonote["yamisskey-anonote<br/>匿名ノートサービス"]:::pages
-            revision["yamisskey-revision<br/>闇消し (ノート削除ツール)"]:::pages
+            revision["yamisskey-revision<br/>闘消し (ノート削除ツール)"]:::pages
             yamidao["yamidao<br/>DAO ガバナンスサイト"]:::pages
             missmap["missmap<br/>Misskeyサーバーマップ"]:::pages
         end
@@ -520,11 +543,18 @@ subgraph support[Support Infrastructure]
     
     subgraph homeservers[🏠 自宅サーバー群]
         direction TB
-        subgraph balthasar_caspar[balthasar/caspar]
+        subgraph balthasar_server[balthasar - 本番環境]
             nginx_misskey[Nginx + ModSecurity<br/>WAF・Reverse Proxy]:::security
             yamisskey[Misskey<br/>🔗 Tailscale接続]:::tailscale
             minio_local[MinIO<br/>オブジェクトストレージ]:::storage
             cloudflared_bc[Cloudflared]:::cloudflare
+        end
+        
+        subgraph caspar_server[caspar - インフラ基盤]
+            nginx_caspar[Nginx + ModSecurity]:::security
+            authentik_svc[Authentik<br/>認証基盤]:::security
+            mcaptcha_svc[mCaptcha<br/>CAPTCHA基盤]:::security
+            cloudflared_cs[Cloudflared]:::cloudflare
         end
     end
 end
@@ -541,6 +571,9 @@ external_servers -->|"②連合リクエスト"| cloudflared_bc
 %% MisskeyからMinIOへのCloudflared経由接続
 yamisskey ==>|"③Cloudflared経由"| cloudflared_bc
 cloudflared_bc ==>|"MinIOアクセス"| nginx_misskey
+
+%% Misskeyから認証基盤へのTailscale経由接続
+yamisskey -.->|"🔗 Tailscale<br/>mCaptcha認証"| mcaptcha_svc
 
 %% Misskeyサーバーからの全外部通信はSquid経由
 yamisskey ==>|"④🔗 Tailscale経由<br/>全外部通信"| squid
@@ -563,4 +596,48 @@ summaryproxy -.->|"⑥URL情報取得結果<br/>返却"| cloudflared_bc
 %% プロキシバイパス対象（特定APIサービス）
 yamisskey -.->|"プロキシバイパス<br/>API直接アクセス"| bypass_services
 bypass_services -.->|"API結果返却<br/>（翻訳・CAPTCHA等）"| yamisskey
+```
+
+## Server Role Summary
+
+```mermaid
+graph LR
+    classDef production fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    classDef infra fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:2px
+    classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px
+    classDef game fill:#fef3c7,stroke:#d97706,stroke-width:2px
+    
+    subgraph roles["サーバー役割分担"]
+        direction TB
+        
+        subgraph balthasar_role["balthasar<br/>本番・ユーザー向け専用"]
+            b1["ActivityPub<br/>yamisskey / Neo-Quesdon / Yui"]:::production
+            b2["Matrix<br/>Synapse / Element"]:::production
+            b3["Apps<br/>Outline / CryptPad / MinIO"]:::production
+        end
+        
+        subgraph caspar_role["caspar<br/>インフラ・監視・セキュリティ基盤"]
+            c1["監視<br/>Prometheus / Grafana / Uptime Kuma"]:::infra
+            c2["IaC<br/>Terraform / Ansible"]:::infra
+            c3["認証・セキュリティ<br/>Authentik / mCaptcha"]:::security
+            c4["実験系<br/>Nostr (Nostream / Rabbit)"]:::infra
+        end
+        
+        subgraph proxmox_role["Proxmox<br/>セキュリティ実験クラスター"]
+            p1["ネットワーク制御<br/>pfSense"]:::security
+            p2["ハニーポット<br/>T-Pot"]:::security
+            p3["ネットワーク解析<br/>Malcolm"]:::security
+            p4["CTF<br/>CTFd + Challenges"]:::security
+        end
+        
+        subgraph truenas_role["TrueNAS<br/>ストレージ・バックアップ"]
+            t1["ZFS Pool<br/>ローカルバックアップ"]:::storage
+            t2["Backup Services<br/>rsync / rclone"]:::storage
+        end
+        
+        subgraph rpi_role["Raspberry Pi<br/>ゲームサーバー"]
+            r1["Minecraft Java"]:::game
+        end
+    end
 ```
