@@ -181,21 +181,21 @@ graph TB
        
        %% Virtual Machines
        subgraph vms["Virtual Machines"]
-           subgraph pfsense_vm["pfSense VM - 4c/8GB/32GB"]
+           subgraph pfsense_vm["pfSense VM - 4c/4GB/32GB"]
                pfsense["pfSense 2.7+"]:::security
                haproxy["HAProxy"]:::service
                openvpn["OpenVPN"]:::security
            end
-           
-           subgraph tpot_vm["T-Pot VM - 8c/24GB/200GB"]
+
+           subgraph tpot_vm["T-Pot VM - 8c/8GB/128GB"]
                tpot["T-Pot 24.04+"]:::security
                cowrie["Cowrie SSH Honeypot"]:::security
                dionaea["Dionaea Multi-protocol"]:::security
                elasticpot["ElasticPot"]:::security
                kibana_tpot["Kibana Dashboard"]:::monitoring
            end
-           
-           subgraph malcolm_vm["Malcolm VM - 12c/32GB/500GB"]
+
+           subgraph malcolm_vm["Malcolm VM - 12c/24GB/500GB"]
                malcolm["Malcolm"]:::monitoring
                elasticsearch["Elasticsearch"]:::monitoring
                logstash["Logstash"]:::monitoring
@@ -203,8 +203,8 @@ graph TB
                suricata_malcolm["Suricata IDS"]:::security
                kibana_malcolm["Kibana Analytics"]:::monitoring
            end
-           
-           subgraph ctf_vm["CTF VM - 4c/8GB/100GB"]
+
+           subgraph ctf_vm["CTF VM - 4c/4GB/100GB"]
                ctfd["CTFd<br/>競技プラットフォーム"]:::ctf
                challenge_containers["Challenge Containers<br/>Docker隔離環境"]:::ctf
                ctf_web["CTF Web Challenges"]:::ctf
@@ -593,7 +593,7 @@ subgraph support[Support Infrastructure]
     
     subgraph linode[Linode Servers]
         direction TB
-        subgraph proxy[linode-proxy]
+        subgraph proxy[linode-proxy - 2GB RAM]
             summaryproxy[Summary proxy<br/>独自IP]:::direct
             mediaproxy[Media proxy<br/>独自IP]:::direct
             squid[Squid プロキシ<br/>🔗 Tailscale ACL制限]:::tailscale
