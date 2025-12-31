@@ -19,6 +19,7 @@ graph TB
     classDef appsStyle fill:#fef3c7,stroke:#ca8a04,stroke-width:2px
     classDef monitoring fill:#d1fae5,stroke:#047857,stroke-width:2px
     classDef iac fill:#f0f9ff,stroke:#0369a1,stroke-width:2px
+    classDef ctfStyle fill:#fce7f3,stroke:#be185d,stroke-width:2px
     
     %% Main Infrastructure
     subgraph main_servers[Main Servers]
@@ -144,6 +145,7 @@ graph TB
     class games service
     class auth_services security
     class monitoring_services monitoring
+    class ctf_platform ctfStyle
     class cloudflared_b,cloudflared_c cloudflare
     class nginx_b,nginx_c proxy
 ```
