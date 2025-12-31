@@ -1,4 +1,4 @@
-# yamihost
+# yamisskey-host
 
 ## Service Architecture & Deployment Overview
 
