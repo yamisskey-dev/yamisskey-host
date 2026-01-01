@@ -187,21 +187,21 @@ graph TB
                openvpn["OpenVPN"]:::security
            end
 
-           subgraph tpot_vm["T-Pot VM - 8c/8GB/128GB"]
-               tpot["T-Pot 24.04+"]:::security
+           subgraph tpot_vm["T-Pot VM - 8c/8GB/128GB (Sensor Mode)"]
+               tpot["T-Pot 24.04+<br/>Sensorモード"]:::security
                cowrie["Cowrie SSH Honeypot"]:::security
                dionaea["Dionaea Multi-protocol"]:::security
                elasticpot["ElasticPot"]:::security
-               kibana_tpot["Kibana Dashboard"]:::monitoring
+               tpot_note["※ ELKなし<br/>→ Malcolmに統合"]:::service
            end
 
-           subgraph malcolm_vm["Malcolm VM - 12c/24GB/500GB"]
+           subgraph malcolm_vm["Malcolm VM - 12c/24GB/500GB (ELK統合)"]
                malcolm["Malcolm"]:::monitoring
-               elasticsearch["Elasticsearch"]:::monitoring
+               elasticsearch["Elasticsearch<br/>+ T-Potログ受信"]:::monitoring
                logstash["Logstash"]:::monitoring
                zeek["Zeek Network Analysis"]:::monitoring
                suricata_malcolm["Suricata IDS"]:::security
-               kibana_malcolm["Kibana Analytics"]:::monitoring
+               kibana_malcolm["Kibana Analytics<br/>T-Pot + Malcolm統合"]:::monitoring
            end
 
            subgraph ctf_vm["CTF VM - 4c/4GB/100GB"]
@@ -219,6 +219,9 @@ graph TB
     vmbr2 --> malcolm_vm
     vmbr2 --> ctf_vm
     vmbr3 --> pfsense_vm
+
+    %% T-Pot Sensor → Malcolm ELK統合
+    tpot -.->|"ログ転送<br/>Logstash/Filebeat"| elasticsearch
     
     %% Internal VM connections
     pfsense --> vmbr1
