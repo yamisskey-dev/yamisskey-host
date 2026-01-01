@@ -181,31 +181,29 @@ graph TB
        
        %% Virtual Machines
        subgraph vms["Virtual Machines"]
-           subgraph pfsense_vm["pfSense VM - 4c/4GB/32GB"]
-               pfsense["pfSense 2.7+"]:::security
+           subgraph opnsense_vm["OPNsense VM - 4c/4GB/32GB"]
+               opnsense["OPNsense 24.7+"]:::security
                haproxy["HAProxy"]:::service
-               openvpn["OpenVPN"]:::security
+               wireguard["WireGuard VPN"]:::security
            end
 
-           subgraph tpot_vm["T-Pot VM - 8c/8GB/128GB (Sensor Mode)"]
-               tpot["T-Pot 24.04+<br/>Sensorモード"]:::security
+           subgraph tpot_vm["T-Pot VM - 8c/16GB/256GB (Hive Mode)"]
+               tpot["T-Pot 24.04+<br/>Hiveモード"]:::security
                cowrie["Cowrie SSH Honeypot"]:::security
                dionaea["Dionaea Multi-protocol"]:::security
                elasticpot["ElasticPot"]:::security
-               tpot_note["※ ELKなし<br/>→ Malcolmに統合"]:::service
+               tpot_elk["ELK Stack<br/>Kibana Dashboard"]:::monitoring
            end
 
-           subgraph malcolm_vm["Malcolm VM - 12c/24GB/500GB (ELK統合)"]
+           subgraph malcolm_vm["Malcolm VM - 12c/24GB/500GB"]
                malcolm["Malcolm"]:::monitoring
-               elasticsearch["Elasticsearch<br/>+ T-Potログ受信"]:::monitoring
-               logstash["Logstash"]:::monitoring
                zeek["Zeek Network Analysis"]:::monitoring
                suricata_malcolm["Suricata IDS"]:::security
-               kibana_malcolm["Kibana Analytics<br/>T-Pot + Malcolm統合"]:::monitoring
+               arkime["Arkime PCAP"]:::monitoring
+               opensearch["OpenSearch"]:::monitoring
            end
 
            subgraph ctf_vm["CTF VM - 4c/4GB/100GB"]
-               ctfd["CTFd<br/>競技プラットフォーム"]:::ctf
                challenge_containers["Challenge Containers<br/>Docker隔離環境"]:::ctf
                ctf_web["CTF Web Challenges"]:::ctf
                ctf_pwn["Pwn/Reversing Challenges"]:::ctf
@@ -214,19 +212,16 @@ graph TB
     end
     
     %% Network connections
-    vmbr0 --> pfsense_vm
+    vmbr0 --> opnsense_vm
     vmbr2 --> tpot_vm
     vmbr2 --> malcolm_vm
     vmbr2 --> ctf_vm
-    vmbr3 --> pfsense_vm
+    vmbr3 --> opnsense_vm
 
-    %% T-Pot Sensor → Malcolm ELK統合
-    tpot -.->|"ログ転送<br/>Logstash/Filebeat"| elasticsearch
-    
     %% Internal VM connections
-    pfsense --> vmbr1
-    pfsense --> vmbr2
-    pfsense --> vmbr3
+    opnsense --> vmbr1
+    opnsense --> vmbr2
+    opnsense --> vmbr3
     
     %% Storage connections
     local --> vms
