@@ -416,16 +416,14 @@ graph TB
     classDef storage fill:#f3e8ff,stroke:#7e22ce,stroke-width:1.5px
     classDef backup fill:#dbeafe,stroke:#1d4ed8,stroke-width:1.5px
     classDef cloud fill:#dcfce7,stroke:#16a34a,stroke-width:2px
-    classDef encrypted fill:#fee2e2,stroke:#dc2626,stroke-width:2px
     classDef service fill:#f8fafc,stroke:#64748b,stroke-width:1px
     classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
     classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
 
-    %% External Backup Destinations (3-2-1バックアップ)
+    %% External Backup Destinations (DBのみ3-2-1バックアップ)
     subgraph external_backup[クラウドバックアップ]
         r2["Cloudflare R2<br/>【DBダンプ】<br/>暗号化済み<br/>世代管理"]:::cloud
         b2["Backblaze B2<br/>【DBダンプ冗長】<br/>暗号化済み<br/>世代管理"]:::cloud
-        filen["Filen E2EE<br/>【MinIO画像】<br/>E2E暗号化<br/>差分同期<br/>5-15分/日"]:::encrypted
     end
 
     %% Local Infrastructure
@@ -469,10 +467,9 @@ graph TB
     db1 -.->|"②ローカルバックアップ<br/>pg_dump + rsync<br/>2.5G LAN<br/>高速リストア用"| backup_svc
     backup_svc ==>|"ZFS保存<br/>スナップショット"| zfs_pool
     
-    %% MinIO Backup flows - TrueNAS経由（差分管理）
-    minio_local -.->|"①rsync over SSH<br/>2.5G LAN<br/>画像ファイル同期<br/>差分転送"| backup_svc
-    backup_svc ==>|"②ローカル保存<br/>ZFSスナップショット"| zfs_pool
-    backup_svc ==>|"③外部バックアップ<br/>rclone sync<br/>暗号化転送<br/>5-15分/日"| filen
+    %% MinIO Backup flows - ローカルのみ（プライバシー優先）
+    minio_local -.->|"rsync over SSH<br/>2.5G LAN<br/>画像ファイル同期<br/>差分転送"| backup_svc
+    backup_svc ==>|"ローカル保存<br/>ZFSスナップショット<br/>短期保持(7日)"| zfs_pool
     
     %% TrueNAS internal flows
     slot23 --> zfs_pool
@@ -497,7 +494,6 @@ graph TB
     class misskey1,db1,node_exporter service
     class backup_svc,backup1 backup
     class r2,b2 cloud
-    class filen encrypted
     class minio_local storage
     class slot456,slot23,zfs_pool storage
     class emmc storage
