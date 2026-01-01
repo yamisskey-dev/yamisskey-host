@@ -421,9 +421,10 @@ graph TB
     classDef security fill:#fee2e2,stroke:#991b1b,stroke-width:1px
     classDef cloudflare fill:#f0fdfa,stroke:#0f766e,stroke-width:1.5px
 
-    %% External Backup Destinations
+    %% External Backup Destinations (3-2-1バックアップ)
     subgraph external_backup[クラウドバックアップ]
-        r2["Cloudflare R2<br/>【DBダンプ専用】<br/>暗号化済み<br/>世代管理"]:::cloud
+        r2["Cloudflare R2<br/>【DBダンプ】<br/>暗号化済み<br/>世代管理"]:::cloud
+        b2["Backblaze B2<br/>【DBダンプ冗長】<br/>暗号化済み<br/>世代管理"]:::cloud
         filen["Filen E2EE<br/>【MinIO画像】<br/>E2E暗号化<br/>差分同期<br/>5-15分/日"]:::encrypted
     end
 
@@ -462,8 +463,9 @@ graph TB
     nginx_bh --> minio_local
     misskey1 --> db1
     
-    %% DB Backup flows - 独立した2系統
-    db1 -.->|"①直接外部バックアップ<br/>pg_dump + rclone<br/>世代管理<br/>TrueNAS非依存"| r2
+    %% DB Backup flows - 3-2-1バックアップ (3コピー、2メディア、1オフサイト)
+    db1 -.->|"①外部バックアップ<br/>pg_dump + rclone<br/>世代管理"| r2
+    db1 -.->|"①外部バックアップ<br/>pg_dump + rclone<br/>冗長化"| b2
     db1 -.->|"②ローカルバックアップ<br/>pg_dump + rsync<br/>2.5G LAN<br/>高速リストア用"| backup_svc
     backup_svc ==>|"ZFS保存<br/>スナップショット"| zfs_pool
     
@@ -485,7 +487,7 @@ graph TB
     %% Monitoring flows
     node_exporter -.->|"システム監視<br/>メトリクス送信"| zfs_pool
     backup_svc -.->|"バックアップ成功率<br/>転送統計<br/>暗号化検証<br/>ZFS容量監視"| node_exporter
-    backup1 -.->|"R2バックアップ成功率<br/>転送統計"| node_exporter
+    backup1 -.->|"R2/B2バックアップ成功率<br/>転送統計"| node_exporter
     
     %% Apply styles
     class balthasar server
@@ -494,7 +496,7 @@ graph TB
     class nginx_bh security
     class misskey1,db1,node_exporter service
     class backup_svc,backup1 backup
-    class r2 cloud
+    class r2,b2 cloud
     class filen encrypted
     class minio_local storage
     class slot456,slot23,zfs_pool storage
