@@ -76,7 +76,7 @@ graph TB
         end
 
         subgraph vms[Virtual Machines]
-            opnsense[OPNsense<br/>4c/4GB]:::sec
+            opnsense[OPNsense<br/>4c/8GB]:::sec
             tpot[T-Pot Hive<br/>8c/16GB<br/>Cowrie/Dionaea/ELK]:::sec
             malcolm[Malcolm<br/>12c/24GB<br/>Zeek/Suricata/Arkime]:::mon
             ctf_vm[CTF Challenges<br/>4c/4GB<br/>Docker隔離]:::ctf
