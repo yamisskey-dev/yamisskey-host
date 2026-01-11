@@ -37,7 +37,6 @@ graph LR
         nginx_c --> mcaptcha[mCaptcha]:::sec
         nginx_c --> misskey_beta[Misskey Beta]:::svc
         nginx_c --> nostr[nostr-rs-relay]:::svc
-        nginx_c --> ctfd[CTFd]:::svc
     end
 
     subgraph rpi[raspberrypi - Game]
@@ -55,52 +54,15 @@ graph LR
     class balthasar,caspar,rpi server
 ```
 
-## Proxmox Virtualization Platform
-
-```mermaid
-graph TB
-    classDef host fill:#e2e8f0,stroke:#334155,stroke-width:2px
-    classDef net fill:#fff3e0,stroke:#ef6c00
-    classDef sec fill:#fee2e2,stroke:#991b1b
-    classDef mon fill:#d1fae5,stroke:#047857
-    classDef ctf fill:#fef3c7,stroke:#d97706
-
-    subgraph proxmox[GMKtec K10 - Proxmox VE]
-        direction TB
-
-        subgraph networks[Virtual Networks]
-            vmbr0[vmbr0 WAN]:::net
-            vmbr1[vmbr1 LAN<br/>10.0.0.0/24]:::net
-            vmbr2[vmbr2 DMZ<br/>192.168.100.0/24]:::net
-            vmbr3[vmbr3 Mgmt<br/>172.16.0.0/24]:::net
-        end
-
-        subgraph vms[Virtual Machines]
-            opnsense[OPNsense<br/>4c/8GB]:::sec
-            tpot[T-Pot Hive<br/>8c/16GB<br/>Cowrie/Dionaea/ELK]:::sec
-            malcolm[Malcolm<br/>12c/24GB<br/>Zeek/Suricata/Arkime]:::mon
-            ctf_vm[CTF Challenges<br/>4c/4GB<br/>Docker隔離]:::ctf
-        end
-    end
-
-    vmbr0 --> opnsense
-    opnsense --> vmbr1 & vmbr2 & vmbr3
-    vmbr2 --> tpot & malcolm & ctf_vm
-
-    class proxmox host
-```
-
 ## Infrastructure as Code
 
 ```mermaid
 graph LR
     classDef ansible fill:#ee0000,stroke:#cc0000,color:#fff
-    classDef terraform fill:#7b42bc,stroke:#5c32a8,color:#fff
     classDef target fill:#e2e8f0,stroke:#334155
 
     subgraph iac[IaC Hub]
         ansible[Ansible]:::ansible
-        terraform[Terraform]:::terraform
     end
 
     subgraph ansible_targets[Ansible管理]
@@ -110,12 +72,7 @@ graph LR
         rpi[Raspberry Pi]:::target
     end
 
-    subgraph terraform_targets[Terraform管理]
-        proxmox[Proxmox VMs<br/>OPNsense/T-Pot/Malcolm/CTF]:::target
-    end
-
     ansible -->|SSH/Tailscale| balthasar & caspar & linode_prox & rpi
-    terraform -->|API| proxmox
 ```
 
 ## Monitoring & Alert System
