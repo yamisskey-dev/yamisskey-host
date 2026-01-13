@@ -43,7 +43,13 @@ graph LR
         minecraft[Minecraft]:::svc --> playig[playit.gg]:::svc
     end
 
-    internet --> cf_b & cf_c
+    subgraph proxmox[Proxmox - CTF]
+        direction TB
+        cf_p[Cloudflared]:::cf --> nginx_p[Nginx+WAF]:::proxy
+        nginx_p --> ctfd[CTFd]:::svc
+    end
+
+    internet --> cf_b & cf_c & cf_p
     playig --> internet
 
     misskey -.->|Tailscale| mcaptcha
@@ -51,7 +57,7 @@ graph LR
     element --> synapse
     prometheus --> grafana
 
-    class balthasar,caspar,rpi server
+    class balthasar,caspar,rpi,proxmox server
 ```
 
 ## Infrastructure as Code
@@ -70,9 +76,10 @@ graph LR
         caspar:::target
         linode_prox[linode-proxy]:::target
         rpi[Raspberry Pi]:::target
+        ctfd[Proxmox mary/ctfd]:::target
     end
 
-    ansible -->|SSH/Tailscale| balthasar & caspar & linode_prox & rpi
+    ansible -->|SSH/Tailscale| balthasar & caspar & linode_prox & rpi & ctfd
 ```
 
 ## Monitoring & Alert System
