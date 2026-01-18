@@ -37,6 +37,9 @@ graph LR
         nginx_c --> mcaptcha[mCaptcha]:::sec
         nginx_c --> misskey_beta[Misskey Beta]:::svc
         nginx_c --> nostr[nostr-rs-relay]:::svc
+        nginx_c --> yamix[yamix]:::svc
+        nginx_c --> yamii[yamii]:::svc
+        yamix --> yamii
     end
 
     subgraph rpi[raspberrypi - Game]
