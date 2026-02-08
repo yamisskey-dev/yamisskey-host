@@ -21,7 +21,6 @@ graph LR
         nginx_b --> neoquesdon[Neo-Quesdon]:::svc
         nginx_b --> synapse[Synapse]:::svc
         nginx_b --> element[Element]:::svc
-        nginx_b --> outline[Outline]:::svc
         nginx_b --> cryptpad[CryptPad]:::svc
         nginx_b --> minio[MinIO]:::svc
     end
@@ -33,10 +32,8 @@ graph LR
         nginx_c --> prometheus[Prometheus]:::mon
         nginx_c --> grafana[Grafana]:::mon
         nginx_c --> uptime[Uptime Kuma]:::mon
-        nginx_c --> authentik[Authentik]:::sec
         nginx_c --> mcaptcha[mCaptcha]:::sec
         nginx_c --> misskey_beta[Misskey Beta]:::svc
-        nginx_c --> nostr[nostr-rs-relay]:::svc
         nginx_c --> yamix[yamix]:::svc
         yamix --> yamii[yamii]:::svc
     end
@@ -55,7 +52,6 @@ graph LR
     playig --> internet
 
     misskey -.->|Tailscale| mcaptcha
-    outline -.->|Tailscale| authentik
     element --> synapse
     prometheus --> grafana
 
