@@ -22,7 +22,7 @@ graph LR
         nginx_b --> synapse[Synapse]:::svc
         nginx_b --> element[Element]:::svc
         nginx_b --> cryptpad[CryptPad]:::svc
-        nginx_b --> minio[MinIO]:::svc
+        nginx_b --> garage[Garage S3]:::svc
     end
 
     subgraph caspar[caspar - インフラ]
@@ -32,7 +32,6 @@ graph LR
         nginx_c --> prometheus[Prometheus]:::mon
         nginx_c --> grafana[Grafana]:::mon
         nginx_c --> uptime[Uptime Kuma]:::mon
-        nginx_c --> mcaptcha[mCaptcha]:::sec
         nginx_c --> misskey_beta[Misskey Beta]:::svc
         nginx_c --> yamix[yamix]:::svc
         yamix --> yamii[yamii]:::svc
@@ -51,7 +50,7 @@ graph LR
     internet --> cf_b & cf_c & cf_p
     playig --> internet
 
-    misskey -.->|Tailscale| mcaptcha
+    misskey -.->|Turnstile| internet
     element --> synapse
     prometheus --> grafana
 
@@ -106,7 +105,7 @@ graph TB
 
     subgraph balthasar[balthasar]
         db[PostgreSQL]:::svc
-        minio[MinIO 2TB]:::storage
+        garage[Garage S3]:::storage
         agent[Backup Agent]:::backup
     end
 
@@ -117,7 +116,7 @@ graph TB
 
     db -->|pg_dump + rclone| r2 & b2
     db -->|pg_dump + rsync| backup_svc
-    minio -->|rsync SSH| backup_svc
+    garage -->|rsync SSH| backup_svc
     backup_svc --> zfs
 ```
 
@@ -168,7 +167,7 @@ graph TB
 
     users([ユーザー])
     federation([外部Fediverse])
-    bypass([DeepL/CAPTCHA APIs])
+    bypass([DeepL/Turnstile])
 
     subgraph linode[Linode Proxy]
         squid[Squid]:::ts
@@ -182,26 +181,21 @@ graph TB
         subgraph balthasar[balthasar]
             cf_b[Cloudflared]:::cf
             nginx[Nginx+WAF]:::sec
-            misskey[Misskey]:::ts
-            minio[MinIO]:::svc
+            misskey[Misskey]:::svc
+            garage[Garage S3]:::svc
             synapse[Synapse]:::svc
-        end
-
-        subgraph caspar[caspar]
-            mcaptcha[mCaptcha]:::sec
         end
     end
 
     %% ユーザーアクセス
-    users ==> cf_b --> nginx --> misskey & minio & synapse
+    users ==> cf_b --> nginx --> misskey & garage & synapse
     federation --> cf_b
 
     %% 外部通信（Squid経由）
     misskey ==>|Tailscale| squid --> warp --> federation
     squid --> mediaproxy & summaryproxy
 
-    %% 認証・VoIP
-    misskey -.->|Tailscale| mcaptcha
+    %% VoIP
     synapse -.-> coturn
     users --> coturn
 
