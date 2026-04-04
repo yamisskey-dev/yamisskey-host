@@ -144,16 +144,14 @@ graph LR
         hub[hub ドキュメント]:::pages
         down[down 障害ページ]:::pages
         anonote[anonote 匿名ノート]:::pages
-        revision[revision ノート削除]:::pages
         yamidao[yamidao DAO]:::pages
-        missmap[missmap サーバーマップ]:::pages
     end
 
     github -->|Webhook| notifier --> misskey & discord
     misskey --> discord_notify --> discord
     users --> yamioti --> down
     users --> signup --> misskey
-    users --> hub & anonote & revision & yamidao & missmap
+    users --> hub & anonote & yamidao
 ```
 
 ## Network Traffic Flow
