@@ -106,19 +106,65 @@ graph TB
     subgraph balthasar[balthasar]
         db[PostgreSQL]:::svc
         garage[Garage S3]:::storage
-        agent[Backup Agent]:::backup
+        misskey_backup[misskey-backup]:::backup
+        db_backup[db-backup]:::backup
+        garage_backup[garage-backup]:::backup
     end
 
     subgraph truenas[TrueNAS - Beelink ME]
         zfs[ZFS Mirror 2TB<br/>自動スナップショット]:::storage
-        backup_svc[Backup Service]:::backup
     end
 
-    db -->|pg_dump + rclone| r2 & b2
-    db -->|pg_dump + rsync| backup_svc
-    garage -->|rsync SSH| backup_svc
-    backup_svc --> zfs
+    misskey_backup -->|pg_dump + rclone| r2 & b2
+    db_backup -->|pg_dump + rsync via LAN| zfs
+    garage_backup -->|rsync via LAN| zfs
 ```
+
+## Docker Network Architecture (balthasar)
+
+各サービスが自分の責務でネットワークを作成し、他サービスは `external: true` で参照する設計。
+
+```mermaid
+graph TB
+    classDef net fill:#e0e7ff,stroke:#3730a3,stroke-width:2px
+    classDef svc fill:#f8fafc,stroke:#64748b
+    classDef creator fill:#d1fae5,stroke:#047857
+
+    subgraph misskey_compose[Misskey docker-compose]
+        web[Misskey web]:::svc
+        redis[Valkey]:::svc
+        db[PostgreSQL]:::svc
+    end
+
+    subgraph garage_compose[Garage docker-compose]
+        garage[Garage S3]:::svc
+    end
+
+    subgraph backup_compose[misskey-backup docker-compose]
+        backup[misskey-backup]:::svc
+    end
+
+    external_network([external_network<br/>作成: Misskey<br/>用途: ポート公開]):::net
+    storage_network([storage_network<br/>作成: Garage<br/>用途: S3通信]):::net
+    internal_network([internal_network<br/>作成: Misskey<br/>用途: 内部通信<br/>internal: true]):::net
+    backup_network([backup_network<br/>作成: Misskey<br/>用途: DBバックアップ<br/>internal: true]):::net
+
+    web --- external_network
+    web --- storage_network
+    web --- internal_network
+    redis --- internal_network
+    db --- internal_network
+    db --- backup_network
+    garage --- storage_network
+    backup --- backup_network
+```
+
+| ネットワーク | 作成者 | 参照者 | internal | 用途 |
+|--|--|--|--|--|
+| `external_network` | Misskey | - | false | webのポート公開（nginx連携） |
+| `storage_network` | Garage | Misskey | false | Misskey↔Garage S3 HTTP通信 |
+| `internal_network` | Misskey | - | true | web↔db↔redis 内部通信 |
+| `backup_network` | Misskey | misskey-backup | true | db↔misskey-backup DB接続 |
 
 ## Cloudflare Workers & Pages
 
