@@ -243,8 +243,8 @@ graph TB
     %% 画像アップロード - Docker内部HTTP (storage_network)
     misskey ===|storage_network<br/>HTTP直通| garage
 
-    %% リモート画像プロキシ (media.yami.ski)
-    users -.->|media.yami.ski| mediaproxy
+    %% リモート画像プロキシ (media.yami.ski) - 他インスタンスの画像を中継
+    users -.->|media.yami.ski| mediaproxy -.->|取得| federation
 
     %% 連合通信（Squid経由）
     misskey ==>|Tailscale| squid --> warp --> federation
