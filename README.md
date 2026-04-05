@@ -208,6 +208,7 @@ graph TB
     classDef ts fill:#fef3c7,stroke:#d97706
     classDef sec fill:#fee2e2,stroke:#991b1b
     classDef svc fill:#f8fafc,stroke:#64748b
+    classDef storage fill:#f3e8ff,stroke:#7e22ce
 
     users([ユーザー])
     federation([外部Fediverse])
@@ -216,7 +217,7 @@ graph TB
     subgraph linode[Linode Proxy]
         squid[Squid]:::ts
         warp[WARP]:::cf
-        mediaproxy[MediaProxy]:::svc
+        mediaproxy[MediaProxy<br/>media.yami.ski]:::svc
         summaryproxy[SummaryProxy]:::svc
         coturn[Coturn TURN]:::svc
     end
@@ -226,16 +227,26 @@ graph TB
             cf_b[Cloudflared]:::cf
             nginx[Nginx+WAF]:::sec
             misskey[Misskey]:::svc
-            garage[Garage S3]:::svc
+            garage[Garage S3<br/>drive.yami.ski]:::storage
             synapse[Synapse]:::svc
         end
     end
 
-    %% ユーザーアクセス
-    users ==> cf_b --> nginx --> misskey & garage & synapse
-    federation --> cf_b
+    %% ユーザーアクセス (yami.ski)
+    users ==>|yami.ski| cf_b --> nginx --> misskey & synapse
 
-    %% 外部通信（Squid経由）
+    %% 画像表示 (drive.yami.ski) - ユーザー/連合がブラウザで画像取得
+    users -->|drive.yami.ski| cf_b
+    federation -->|drive.yami.ski| cf_b
+    nginx -->|drive.yami.ski| garage
+
+    %% 画像アップロード - Docker内部HTTP (storage_network)
+    misskey ===|storage_network<br/>HTTP直通| garage
+
+    %% リモート画像プロキシ (media.yami.ski)
+    users -.->|media.yami.ski| mediaproxy
+
+    %% 連合通信（Squid経由）
     misskey ==>|Tailscale| squid --> warp --> federation
     squid --> mediaproxy & summaryproxy
 
