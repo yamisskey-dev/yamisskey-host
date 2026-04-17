@@ -214,7 +214,7 @@ graph TB
     federation([外部Fediverse])
     bypass([DeepL/Turnstile])
 
-    subgraph linode[Linode Proxy]
+    subgraph linode[Linode Proxy<br/>4GB]
         squid[Squid]:::ts
         warp[WARP]:::cf
         mediaproxy[MediaProxy<br/>media.yami.ski]:::svc
