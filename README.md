@@ -20,6 +20,7 @@ graph LR
         cf_b[Cloudflared]:::cf --> nginx_b[Nginx+WAF]:::proxy
 
         nginx_b --> misskey[Misskey]:::svc
+        nginx_b --> neoquesdon[Neo-Quesdon]:::svc
         nginx_b --> synapse[Synapse]:::svc
         nginx_b --> element[Element]:::svc
         nginx_b --> cryptpad[CryptPad]:::svc
@@ -34,6 +35,8 @@ graph LR
         nginx_c --> grafana[Grafana]:::mon
         nginx_c --> uptime[Uptime Kuma]:::mon
         nginx_c --> misskey_beta[Misskey Beta]:::svc
+        nginx_c --> yamix[yamix]:::svc
+        yamix --> yamii[yamii]:::svc
     end
 
     subgraph rpi[raspberrypi - Game]
